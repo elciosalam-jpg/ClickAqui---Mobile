@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live TV Player Pro</title>
+    <!-- Biblioteca HLS para suporte a streaming de TV -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        /* DESIGN E INTERFACE (CSS) */
+        :root {
+            --bg-color: #0f0f0f;
+            --card-bg: #1e1e1e;
+            --accent-color: #ff4757;
+            --text-color: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 15px;
+        }
+
+        .container { max-width: 1100px; margin: auto; }
+
+        /* Controles Superiores */
+        .header-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input, select, button {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: var(--card-bg);
+            color: white;
+            font-size: 14px;
+        }
+
+        button {
+            background: var(--accent-color);
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+        }
+
+        /* Área do Player Responsivo */
+        .video-wrapper {
+            width: 100%;
+            background: #000;
+            aspect-ratio: 16 / 9;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #222;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        video, iframe { width: 100%; height: 100%; border: none; }
+
+        /* Grelha de Canais */
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 15px;
+        }
+
+        .channel-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            border: 1px solid #333;
+        }
+
+        .channel-card:hover {
+            background: #2a2a2a;
+            transform: translateY(-5px);
+            border-color: var(--accent-color);
+        }
+
+        .channel-card h4 { margin: 10px 0 5px 0; font-size: 16px; }
+        .tag { font-size: 11px; text-transform: uppercase; color: var(--accent-color); font-weight: bold; }
+
+        /* Responsividade para Mobile */
+        @media (max-width: 600px) {
+            .channels-grid { grid-template-columns: 1fr 1fr; }
+            .header-controls { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1 style="text-align: center; color: var(--accent-color);">TV AO VIVO</h1>
+    </header>
+
+    <!-- Barra de Ferramentas -->
+    <div class="header-controls">
+        <input type="text" id="searchInput" placeholder="🔍 Buscar canal..." onkeyup="atualizarLista()">
+        <select id="filterCategory" onchange="atualizarLista()">
+            <option value="todos">Todas as Categorias</option>
+            <option value="infantil">Infantil</option>
+            <option value="negocios">Negócios</option>
+            <option value="esporte">Esporte</option>
+            <option value="geral">Geral</option>
+        </select>
+        <input type="text" id="urlInput" placeholder="URL .m3u8 personalizada">
+        <button onclick="carregarUrlPersonalizada()">Assistir URL</button>
+    </div>
+
+    <!-- Player Principal -->
+    <div class="video-wrapper" id="playerArea">
+        <video id="meuVideo" controls poster="https://via.placeholder.com/1280x720/000/fff?text=Selecione+um+Canal"></video>
+    </div>
+
+    <!-- Lista de Canais -->
+    <div class="channels-grid" id="listaCanais">
+        <!-- Gerado via JavaScript -->
+    </div>
+</div>
+
+<script>
+    /* LÓGICA DE PROGRAMAÇÃO (JAVASCRIPT) */
+
+    // 1. Banco de Dados dos Canais
+    const canais = [
+        { nome: "Desenhos Kids", url: "https://www.youtube.com/embed/5dbG4Qq_7uE", cat: "infantil", tipo: "youtube" },
+        { nome: "Bloomberg TV", url: "https://liveproduction.it.bloomberg.com/low/us/playlist.m3u8", cat: "negocios", tipo: "hls" },
+        { nome: "Esporte News", url: "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8", cat: "esporte", tipo: "hls" },
+        { nome: "Canal Notícias", url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", cat: "geral", tipo: "hls" },
+        { nome: "Documentários", url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", cat: "geral", tipo: "hls" },
+        { nome: "Filmes", url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", cat: "geral", tipo: "hls" },
+        { nome: "Infantil 2", url: "https://www.youtube.com/embed/5dbG4Qq_7uE", cat: "infantil", tipo: "youtube" },
+        { nome: "Música 1", url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", cat: "geral", tipo: "hls" },
+        { nome: "Música 2", url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", cat: "geral", tipo: "hls" },
+        { nome: "Negócios Global", url: "https://liveproduction.it.bloomberg.com/low/us/playlist.m3u8", cat: "negocios", tipo: "hls" },
+        { nome: "Esporte Radical", url: "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8", cat: "esporte", tipo: "hls" }
+    ];
+
+    const videoElement = document.getElementById('meuVideo');
+    const playerArea = document.getElementById('playerArea');
+
+    // 2. Função para Reproduzir o Canal
+    function play(url, tipo) {
+        playerArea.innerHTML = ''; // Limpa o player
+
+        if (tipo === 'youtube') {
+            playerArea.innerHTML = `<iframe src="${url}?autoplay=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        } else {
+            const video = document.createElement('video');
+            video.controls = true;
+            video.autoplay = true;
+            playerArea.appendChild(video);
+
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            }
+        }
+    }
+
+    // 3. Função para URL Personalizada
+    function carregarUrlPersonalizada() {
+        const url = document.getElementById('urlInput').value;
+        if (url) play(url, 'hls');
+    }
+
+    // 4. Função de Busca e Filtro
+    function atualizarLista() {
+        const busca = document.getElementById('searchInput').value.toLowerCase();
+        const categoria = document.getElementById('filterCategory').value;
+        const grid = document.getElementById('listaCanais');
+        
+        grid.innerHTML = ''; // Limpa a lista para filtrar
+
+        canais.forEach(canal => {
+            const correspondeBusca = canal.nome.toLowerCase().includes(busca);
+            const correspondeCat = categoria === 'todos' || canal.cat === categoria;
+
+            if (correspondeBusca && correspondeCat) {
+                const card = document.createElement('div');
+                card.className = 'channel-card';
+                card.onclick = () => play(canal.url, canal.tipo);
+                card.innerHTML = `<span class="tag">${canal.cat}</span><h4>${canal.nome}</h4>`;
+                grid.appendChild(card);
+            }
+        });
+    }
+
+    // Iniciar a lista ao carregar a página
+    atualizarLista();
+</script>
+
+</body>
+</html>
